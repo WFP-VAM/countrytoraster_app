@@ -1,0 +1,6 @@
+affine==2.1.0
+requests==2.18.4
+rasterio==1.0a12
+matplotlib==2.1.0
+GDAL==2.2.2
+Shapely==1.6.4.post1

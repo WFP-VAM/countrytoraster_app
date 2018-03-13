@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+   <head>
+    <title>JB's first app (ahah loser)</title>
+	<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+	<!-- jQuery library -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+	<!-- Latest compiled JavaScript -->
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  </head>
+
+   <body>
+		<nav class="navbar navbar-default" role="navigation">
+			<ul class="nav navbar-nav">
+				How it works? see the <a href="https://github.com/WFP-VAM/coordinates_converter">repository.</a>
+			</ul>
+		</nav>
+
+		<div class="container">
+		<img src="http://www.godan.info/sites/default/files/logos/world_food_programme_un_vulnerability_analysis_mapping_vam.jpg"
+		style="float: right;" width="300" />
+		</div>
+
+		<div class="container">
+			<form class="form" action = "/convert" method = "POST" enctype = "multipart/form-data">
+
+			 <div class="form-group">
+				Country: <input type="text" name="country"><br><br>
+				Projection: <input type="text" name="projection"><br><br>
+				Grid Size: <input type="text" name="gsize"><br><br>
+			 </div>
+
+
+			 <button type="submit" class="btn btn-default" name="action" value="download">Download Tiff</button>
+       <button type="submit" class="btn btn-default" name="action" value="preview">Preview</button>
+			</form>
+		</div>
+
+   </body>
