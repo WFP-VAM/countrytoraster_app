@@ -15,6 +15,7 @@ import io
 from PIL import Image
 from rasterio.io import MemoryFile
 from zipfile import ZipFile
+import os 
 
 
 app = Flask(__name__)
