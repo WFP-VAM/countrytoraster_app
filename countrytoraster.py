@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import io
 from PIL import Image
 from rasterio.io import MemoryFile
+from zipfile import ZipFile
 
 
 app = Flask(__name__)
@@ -21,16 +22,15 @@ app = Flask(__name__)
 
 def output_showcase(img):
    # generate image with result
-   fig = plt.figure(figsize=(5, 5), dpi=300)
+   fig = plt.figure(figsize=(5, 5), dpi=150)
    ax = fig.add_subplot(111)
    ax.imshow(img, cmap='Greys')
-   #plt.imshow(img, cmap='Greys')
-
    output = io.BytesIO()
+   plt.axis('off')
    plt.savefig(output, dpi=fig.dpi)
    output.seek(0)
 
-   return send_file(output, mimetype='image/png')
+   return send_file(output, mimetype='image/png', cache_timeout=-1)
 
 
 @app.route("/")
@@ -42,8 +42,13 @@ def home():
 @app.route("/convert",methods=["POST"])
 def countrytoraster():
     country=request.form["country"]
-    resolution=int(request.form["gsize"])
+    resolution=float(request.form["gsize"])
     projection=int(request.form["projection"])
+    api=int(request.form["api_field"])
+
+    print(request.form)
+
+    name="{}_{}_{}_{}".format(country, resolution, projection, api)
 
     #template geojson in the correct format
     geojson_template_polygon={
@@ -53,12 +58,47 @@ def countrytoraster():
     }
 
     #Get a geojson from the openstreetmap api
-    url="http://nominatim.openstreetmap.org/search?country={}&polygon_geojson=1&format=json".format(country)
-    r = requests.get(url)
-    data = r.json()[0]['geojson']
+    #url="http://nominatim.openstreetmap.org/search?country={}&polygon_geojson=1&format=json".format(country)
     geojson=geojson_template_polygon
-    geojson["geometry"]["coordinates"]=data["coordinates"]
-    geojson["geometry"]["type"]=data["type"]
+
+    if api==1:
+        ##1st API: Natural Earth
+        r = requests.get("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson")
+        data = r.json()
+        for i in range(0,len(data["features"])):
+            for j in data["features"][i]["properties"]:
+                if data["features"][i]["properties"][j]==country:
+                    country_id=i
+                    break
+            else:
+                continue
+            break
+        geojson["geometry"]["coordinates"]=data["features"][country_id]["geometry"]["coordinates"]
+        geojson["geometry"]["type"]=data["features"][country_id]["geometry"]["type"]
+
+
+    elif api==2:
+        ## 2nd API: Open Street Map
+        params = (
+        ('cliVersion', '1.0'),
+        ('cliKey', 'f7249a6c-5e0c-4834-823c-eef0167aebac'),
+        ('exportFormat', 'json'),
+        ('exportLayout', 'levels'),
+        ('exportAreas', 'land'),
+        ('union', 'false'),
+        ('selected', country))
+
+        r = requests.get('https://wambachers-osm.website/boundaries/exportBoundaries', params=params)
+
+        zipfile = ZipFile(io.BytesIO(r.content))
+        zip_names = zipfile.namelist()
+
+        data = zipfile.open(zip_names[0]).read()
+        data = json.loads(data.decode("utf-8"))
+
+        geojson["geometry"]["coordinates"]=data["features"][0]["geometry"]["coordinates"]
+        geojson["geometry"]["type"]=data["features"][0]["geometry"]["type"]
+
 
     #Reproject the original geojson with GDAL osr and ogr
     source = osr.SpatialReference()
@@ -71,33 +111,36 @@ def countrytoraster():
     geojson_reproj=json.loads(polygon.ExportToJson())
 
     #Rasterize the polygon with rasterio
-    bounds = geojson.get('bbox', calculate_bounds(geojson_reproj))
+    bounds = calculate_bounds(geojson_reproj)
     res = (resolution,resolution)
-    width = max(int(ceil((bounds[2] - bounds[0]) / float(res[0]))), 1)
-    height = max(int(ceil((bounds[3] - bounds[1]) /float(res[1]))), 1)
     geometries = ((geojson_reproj, 1), )
-    trans=Affine(res[0], 0, bounds[0], 0, -res[1],bounds[3])
-    output = rasterize(geometries,
-                   transform=trans,
-                   out_shape=(height, width))
+    params = {
+    'count': 1,
+    'crs':'EPSG:{}'.format(projection),
+    'width': max(int(ceil((bounds[2] - bounds[0]) / float(res[0]))), 1),
+    'height': max(int(ceil((bounds[3] - bounds[1]) /float(res[1]))), 1),
+    'driver': 'GTiff',
+    'transform': Affine(res[0], 0, bounds[0], 0, -res[1], bounds[3]),
+    'nodata': 0,
+    'dtype': 'uint8'
+    }
+
+    output = rasterize(
+                geometries,
+                out_shape=(params['height'], params['width']),
+                transform=params['transform'])
 
     with MemoryFile() as memfile:
-        with memfile.open(
-            driver='GTiff',
-            dtype=rasterio.uint8,
-            count=1,
-            width=width,
-            height=height,
-            nodata=0) as dst:
+        with memfile.open(**params) as dst:
                 dst.write(output, indexes=1)
-        with open('/tmp/test.tif', 'wb') as g:
+        with open('/tmp/file.tif', 'wb') as g:
             memfile.seek(0)
             g.write(memfile.read())
             if request.form["action"] == "download":
-                return send_file('/tmp/test.tif',
+                return send_file('/tmp/file.tif',
                                  mimetype='image/tiff',
                                  as_attachment=True,
-                                 attachment_filename="{}_{}_{}.tif".format(country, resolution, projection))
+                                 attachment_filename=name+".tif")
             elif request.form["action"] == "preview":
                 return output_showcase(output)
 
