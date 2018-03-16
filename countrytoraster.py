@@ -3,9 +3,10 @@ from GIS_utils import geojson_country_NE, geojson_country_OSM, reproject_geojson
 from flask import Flask, request, send_file, make_response, render_template
 import os
 import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import io
-matplotlib.use("Agg")
+
 
 
 app = Flask(__name__)
