@@ -1,4 +1,7 @@
 def geojson_country_NE(country):
+    '''
+    From a country name or code, it gets a geojson object of the country boundary from Natural Earth API
+    '''
     import requests
     r = requests.get("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson")
     country_id=-1
@@ -27,6 +30,9 @@ def geojson_country_NE(country):
 
 
 def geojson_country_OSM(country_ISO):
+    '''
+    From a country ISO code, it gets a geojson object of the country boundary from Open Street Map (wambachers) API
+    '''
     import requests
     from zipfile import ZipFile
     import io
@@ -60,7 +66,13 @@ def geojson_country_OSM(country_ISO):
     else:
         print("No Boundaries available for this request")
 
-def reproject_geojson_gdal(geojson,dst_crs,src_crs=4326,):
+def reproject_geojson_gdal(geojson,dst_crs,src_crs=4326):
+    '''
+    Reprojects a geojson in a new coordinate reference system (crs) with GDAL library.
+    If not specified, the input geojson crs is ESPG:4326  (WGS84 used for GPS coordinates in latitude/longitude)
+
+    dst_crs and src_crs are the code of the projection in the ESPG system. Ex: 3857 for pseudo-Mercator.
+    '''
     from osgeo import ogr, osr
     import json
     source = osr.SpatialReference()
@@ -79,6 +91,12 @@ def reproject_geojson_gdal(geojson,dst_crs,src_crs=4326,):
     return geojson_reproj
 
 def reproject_geojson_gpd(geojson,dst_crs,src_crs=4326):
+    '''
+    Reprojects a geojson in a new coordinate reference system (crs) with GeoPandas library.
+    If not specified, the input geojson crs is ESPG:4326, the WGS84 used for GPS coordinates in latitude/longitude.
+
+    dst_crs and src_crs are the code of the projection in the ESPG system. Ex: 3857 for pseudo-Mercator.
+    '''
     import geopandas as gpd
     from shapely.geometry import shape
     import json
@@ -94,6 +112,16 @@ def reproject_geojson_gpd(geojson,dst_crs,src_crs=4326):
     return geojson_reproj
 
 def rasterize_geojson(geojson,resolution,dst_raster,src_crs):
+    '''
+    Rasterize a geojson vector to a raster tiff file using rasterio library.
+    It is mandatory to specify the coordinate reference system (crs) of the input geojson as
+    the corresponding code in the ESPG system (ex:3857)
+
+    resolution is the pixel size of the output raster in the unit system of crs. Usually
+    metres for projected coordinates (ex: 3857) and degrees for non-projected crs (ex: 4326)
+
+    Returns both the raster path and the numpy ndarray of the raster.
+    '''
     from rasterio.features import bounds as calculate_bounds
     from math import ceil
     from affine import Affine
@@ -124,6 +152,9 @@ def rasterize_geojson(geojson,resolution,dst_raster,src_crs):
     return dst_raster, output
 
 def reproject_raster(src_raster,dst_raster,dst_crs):
+    '''
+    Reprojects a raster tiff file from a given coordinate reference system (crs) to a new crs using rasterio library.
+    '''
     import numpy as np
     import rasterio
     from rasterio.warp import calculate_default_transform, reproject, Resampling

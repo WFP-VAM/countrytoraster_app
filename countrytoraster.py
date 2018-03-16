@@ -46,7 +46,8 @@ def countrytoraster():
     if geojson==None:
         return "No Boundaries available for this request"
 
-    geojson_reproj = reproject_geojson_gpd(geojson,src_crs=4326,dst_crs=projection)
+    if projection!=4326:
+        geojson_reproj = reproject_geojson_gpd(geojson,src_crs=4326,dst_crs=projection)
 
     raster_path, output = rasterize_geojson(geojson_reproj,resolution,dst_raster="/tmp/raster.tif",src_crs=projection)
 
