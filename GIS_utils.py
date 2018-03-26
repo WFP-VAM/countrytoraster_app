@@ -4,28 +4,28 @@ def geojson_country_NE(country):
     '''
     import requests
     r = requests.get("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson")
-    country_id=-1
+    country_id = -1
 
     data = r.json()
-    for i in range(0,len(data["features"])):
+    for i in range(0, len(data["features"])):
         for j in data["features"][i]["properties"]:
-            if data["features"][i]["properties"][j]==country:
-                country_id=i
+            if data["features"][i]["properties"][j] == country:
+                country_id = i
                 break
         else:
             continue
         break
 
-    geojson={
-      "type": "Feature",
-      "properties": {},
-      "geometry": {}
+    geojson = {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {}
     }
 
-    if country_id==-1:
+    if country_id == -1:
         print("No Boundaries available for this request")
     else:
-        geojson["geometry"]=data["features"][country_id]["geometry"]
+        geojson["geometry"] = data["features"][country_id]["geometry"]
         return geojson
 
 
@@ -38,13 +38,13 @@ def geojson_country_OSM(country_ISO):
     import io
     import json
     params = (
-    ('cliVersion', '1.0'),
-    ('cliKey', 'f7249a6c-5e0c-4834-823c-eef0167aebac'),
-    ('exportFormat', 'json'),
-    ('exportLayout', 'levels'),
-    ('exportAreas', 'land'),
-    ('union', 'false'),
-    ('selected', country_ISO))
+        ('cliVersion', '1.0'),
+        ('cliKey', 'f7249a6c-5e0c-4834-823c-eef0167aebac'),
+        ('exportFormat', 'json'),
+        ('exportLayout', 'levels'),
+        ('exportAreas', 'land'),
+        ('union', 'false'),
+        ('selected', country_ISO))
 
     r = requests.get('https://wambachers-osm.website/boundaries/exportBoundaries', params=params)
 
@@ -55,18 +55,19 @@ def geojson_country_OSM(country_ISO):
         data = zipfile.open(zip_names[0]).read()
         data = json.loads(data.decode("utf-8"))
 
-        geojson={
-          "type": "Feature",
-          "properties": {},
-          "geometry": {}
+        geojson = {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {}
         }
-        geojson["geometry"]=data["features"][0]["geometry"]
+        geojson["geometry"] = data["features"][0]["geometry"]
 
         return geojson
     else:
         print("No Boundaries available for this request")
 
-def reproject_geojson_gdal(geojson,dst_crs,src_crs=4326):
+
+def reproject_geojson_gdal(geojson, dst_crs, src_crs=4326):
     '''
     Reprojects a geojson in a new coordinate reference system (crs) with GDAL library.
     If not specified, the input geojson crs is ESPG:4326  (WGS84 used for GPS coordinates in latitude/longitude)
@@ -82,15 +83,16 @@ def reproject_geojson_gdal(geojson,dst_crs,src_crs=4326):
     transform = osr.CoordinateTransformation(source, target)
     polygon = ogr.CreateGeometryFromJson("""{}""".format(geojson["geometry"]))
     polygon.Transform(transform)
-    geojson_reproj={
-      "type": "Feature",
-      "properties": {},
-      "geometry": {}
+    geojson_reproj = {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {}
     }
-    geojson_reproj["geometry"]=json.loads(polygon.ExportToJson())
+    geojson_reproj["geometry"] = json.loads(polygon.ExportToJson())
     return geojson_reproj
 
-def reproject_geojson_gpd(geojson,dst_crs,src_crs=4326):
+
+def reproject_geojson_gpd(geojson, dst_crs, src_crs=4326):
     '''
     Reprojects a geojson in a new coordinate reference system (crs) with GeoPandas library.
     If not specified, the input geojson crs is ESPG:4326, the WGS84 used for GPS coordinates in latitude/longitude.
@@ -100,18 +102,19 @@ def reproject_geojson_gpd(geojson,dst_crs,src_crs=4326):
     import geopandas as gpd
     from shapely.geometry import shape
     import json
-    goodshape=shape(geojson["geometry"])
-    gdf = gpd.GeoSeries(goodshape,crs={'init': 'epsg:{}'.format(src_crs)})
+    goodshape = shape(geojson["geometry"])
+    gdf = gpd.GeoSeries(goodshape, crs={'init': 'epsg:{}'.format(src_crs)})
     gdf = gdf.to_crs({'init': 'epsg:{}'.format(dst_crs)})
-    geojson_reproj={
-      "type": "Feature",
-      "properties": {},
-      "geometry": {}
+    geojson_reproj = {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {}
     }
-    geojson_reproj["geometry"]=json.loads(gdf.to_json())["features"][0]["geometry"]
+    geojson_reproj["geometry"] = json.loads(gdf.to_json())["features"][0]["geometry"]
     return geojson_reproj
 
-def rasterize_geojson(geojson,resolution,dst_raster,src_crs):
+
+def rasterize_geojson(geojson, resolution, dst_raster, src_crs):
     '''
     Rasterize a geojson vector to a raster tiff file using rasterio library.
     It is mandatory to specify the coordinate reference system (crs) of the input geojson as
@@ -126,36 +129,35 @@ def rasterize_geojson(geojson,resolution,dst_raster,src_crs):
     from math import ceil
     from affine import Affine
     from rasterio.features import rasterize
-    from rasterio.io import MemoryFile
     import rasterio
     bounds = calculate_bounds(geojson)
-    res = (resolution,resolution)
+    res = (resolution, resolution)
     geometries = ((geojson["geometry"], 1), )
     params = {
-    'count': 1,
-    'crs':'EPSG:{}'.format(src_crs),
-    'width': max(int(ceil((bounds[2] - bounds[0]) / float(res[0]))), 1),
-    'height': max(int(ceil((bounds[3] - bounds[1]) /float(res[1]))), 1),
-    'driver': 'GTiff',
-    'transform': Affine(res[0], 0, bounds[0], 0, -res[1], bounds[3]),
-    'nodata': 0,
-    'dtype': 'uint8'
+        'count': 1,
+        'crs': 'EPSG:{}'.format(src_crs),
+        'width': max(int(ceil((bounds[2] - bounds[0]) / float(res[0]))), 1),
+        'height': max(int(ceil((bounds[3] - bounds[1]) / float(res[1]))), 1),
+        'driver': 'GTiff',
+        'transform': Affine(res[0], 0, bounds[0], 0, -res[1], bounds[3]),
+        'nodata': 0,
+        'dtype': 'uint8'
     }
 
     output = rasterize(
-                geometries,
-                out_shape=(params['height'], params['width']),
-                transform=params['transform'])
+        geometries,
+        out_shape=(params['height'], params['width']),
+        transform=params['transform'])
 
-    with rasterio.open(dst_raster,'w',**params) as dst:
+    with rasterio.open(dst_raster, 'w', **params) as dst:
             dst.write(output, indexes=1)
     return dst_raster, output
 
-def reproject_raster(src_raster,dst_raster,dst_crs):
+
+def reproject_raster(src_raster, dst_raster, dst_crs):
     '''
     Reprojects a raster tiff file from a given coordinate reference system (crs) to a new crs using rasterio library.
     '''
-    import numpy as np
     import rasterio
     from rasterio.warp import calculate_default_transform, reproject, Resampling
     dst_crs = 'EPSG:{}'.format(dst_crs)
